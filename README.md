@@ -66,6 +66,5 @@ gh skill publish --dry-run      # validates against the agentskills.io spec
 
 ## Notes
 
-- This repo is **private** — the machine pulling it must authenticate as a user
-  with access (`gh auth login`), or the repo can be made public.
+
 - Skills carry their own attribution; see `LICENSE` for repo-level licensing.
