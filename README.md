@@ -16,6 +16,8 @@ agent-skills/
 ├── subagent-driven-development/
 │   ├── SKILL.md          ← required: YAML frontmatter (name, description) + markdown body
 │   └── references/       ← optional: on-demand playbooks linked from SKILL.md
+├── requesting-code-review/
+│   └── SKILL.md          ← optional independent-review escalation policy
 └── <your-next-skill>/
     └── SKILL.md
 ```
@@ -27,6 +29,7 @@ agent-skills/
 ```bash
 gh skill install unsupportedpastels/agent-skills            # browse interactively
 gh skill install unsupportedpastels/agent-skills subagent-driven-development   # install one skill
+gh skill install unsupportedpastels/agent-skills requesting-code-review
 ```
 
 `gh` places the skill in the correct directory for your agent host automatically.
@@ -38,8 +41,10 @@ Requires gh ≥ 2.90.
 git clone https://github.com/unsupportedpastels/agent-skills.git
 # project scope (one repo):
 cp -r agent-skills/subagent-driven-development .github/skills/
+cp -r agent-skills/requesting-code-review .github/skills/
 # personal scope (all projects):
 cp -r agent-skills/subagent-driven-development ~/.copilot/skills/
+cp -r agent-skills/requesting-code-review ~/.copilot/skills/
 ```
 
 Or point VS Code's `chat.agentSkillsLocations` setting at the cloned checkout.

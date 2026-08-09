@@ -1,250 +1,234 @@
 ---
 name: subagent-driven-development
-description: "Use for controller-led coding with focused implementation subagents. Load when orchestrating delegated coding work: partitioning bounded jobs, dispatching parallel workers, integrating results, verifying diffs, and adjudicating review."
+description: "Use for cost-efficient coding when an expensive orchestrator should plan, delegate bounded implementation to cheaper workers, adjudicate the diff, fix confirmed defects, and avoid unnecessary review agents."
 license: MIT
 ---
 
 # Subagent-Driven Development
 
-## Overview
+## Purpose
 
-Use the main agent as the **orchestrator and adjudicator** and subagents as narrowly targeted implementation workers.
+Use the expensive main model as the **planner, orchestrator, and adjudicator**. Use the configured delegate model as the **implementation worker**.
 
-The main agent owns repository discovery, decomposition, dependency routing, integration judgment, review adjudication, corrective edits, verification, and delivery. Each worker owns one bounded job with an explicit source-and-test allowlist and enough task context to finish without wandering into adjacent work.
+Default loop:
 
-**Core principle:** workers add focused implementation capacity; they do not replace the main agent's architectural context or decision authority. Worker summaries and reviewer findings are evidence, never proof or automatic decisions.
+> Plan and bound the task → dispatch implementation worker(s) → inspect the actual diff → adjudicate correctness → fix confirmed issues → run final verification → deliver.
+
+The goal is not maximum agent count. The goal is to move implementation tokens to a cheaper model without surrendering architectural judgment or final correctness.
+
+## Cost-Control Rules
+
+1. **Do not delegate trivial work.** If explaining and dispatching the task costs more than doing a small mechanical edit directly, do it directly.
+2. **Prefer one implementation worker.** Spawn multiple workers only for genuinely independent jobs that benefit from parallelism.
+3. **Do not duplicate the worker's implementation.** The orchestrator should inspect and reason about the resulting diff, not independently reimplement the same feature.
+4. **Do not spawn reviewers by habit.** Main-agent inspection is the default review. Independent review requires a specific trigger.
+5. **Do not bounce routine fixes between agents.** The orchestrator directly fixes small, confirmed defects because it has the broader context and stronger model.
+6. **Verify proportionally.** Rerun focused tests and project-required gates. Do not run every possible suite or review stage merely because it exists.
+7. **Keep prompts bounded.** Pass task semantics, paths, invariants, and commands—not copied repositories, giant file bodies, or irrelevant conversation history.
+
+Delegate provider/model/reasoning are configured outside this skill. Confirm them when the user changes delegation settings or when a mismatch is suspected; do not revalidate the model registry on every task.
 
 ## When to Use
 
-Use this skill when coding work can be divided into bounded jobs and fresh worker context improves focus or throughput. Keep the main agent in control of integration and verification.
+Use when:
 
-Do not delegate work that is cheaper to do directly, depends on unresolved user/product decisions, overlaps an active worker, or primarily consists of shared-file integration or architectural adjudication.
+- The implementation is substantial enough that delegation saves main-model tokens.
+- The outcome can be stated with concrete acceptance criteria.
+- A worker can inspect and edit a bounded area without unresolved product decisions.
+- Several jobs are mechanically disjoint and parallel execution provides real value.
 
-## Role Contract
+Do not use when:
 
-### Main agent: orchestrator and adjudicator
+- The change is tiny or purely mechanical.
+- The task is primarily architecture, product judgment, or review adjudication.
+- Required user decisions are unresolved.
+- The implementation depends on an active worker's files or mutable runtime resources.
+- The worker brief would require reproducing most of the orchestrator's context.
+
+## Roles
+
+### Main model: plan, orchestrate, adjudicate
 
 The main agent owns:
 
-1. Repository inspection, dependency tracing, and sidecar requirements.
-2. Worker objectives, dependency-closed allowlists, non-goals, acceptance criteria, and focused tests.
-3. Parallelism decisions, writer-lease tracking, and serialized shared integration.
-4. Diff inspection and verification from the stable main workspace.
-5. Review adjudication against the spec and repository invariants.
-6. Confirmed post-review corrections and regression coverage; the main agent has broader context and, in this workflow, the more capable model.
-7. Final project gates, changed-path accounting, todo state, and delivery.
-8. Commits only when requested or required by the active workflow.
+- Understanding the user's outcome and non-negotiable constraints.
+- Inspecting enough of the repository to identify boundaries, invariants, and acceptance tests. Avoid exhaustive rediscovery when the worker can perform local discovery safely.
+- Choosing direct work versus delegation and one worker versus a disjoint batch.
+- Writing self-contained worker briefs.
+- Preserving user changes and managing writer leases.
+- Inspecting every changed path and the actual diff after handoff.
+- Adjudicating behavior, security, compatibility, and scope.
+- Directly correcting small confirmed defects and adding regressions where useful.
+- Running authoritative final verification and reporting only verified results.
 
-### Subagents: targeted implementation workers
+### Delegate model: implement the bounded outcome
 
-Each leaf worker receives one outcome that fits its context and timeout, with:
+A worker owns one concrete implementation job. It may perform local discovery needed inside its owned area, then edit and test the result.
 
-- A dependency-closed source-and-test allowlist.
-- Full task semantics: required behavior, invariants, verification, non-goals, and stop condition.
-- Paths—not copied bodies—for large source or reference files.
-- A handoff requiring changed paths, commands/results, assumptions, and unresolved concerns.
-- No authority to broaden scope, adjudicate peers, integrate shared work, or commit unless explicitly requested.
+The worker must receive:
 
-If a brief requires broad rediscovery, many shared files, unrelated suites, or architectural decisions, split it further or keep it main-agent-owned.
+- Objective and observable acceptance criteria.
+- Owned paths or a clearly bounded component. Exact file allowlists are required for concurrent writers; a single worker may use a component boundary when exact dependencies are not yet known.
+- Relevant invariants and compatibility/security constraints.
+- Non-goals and explicit stop conditions.
+- Focused verification commands.
+- A handoff requiring changed paths, test results, assumptions, and unresolved concerns.
 
-## Pre-flight Gate
+Workers do not commit, broaden scope, adjudicate peers, or perform unrelated cleanup unless explicitly instructed.
 
-Before dispatching a wave, the main agent verifies:
+## Lightweight Preflight
 
-- The working tree and branch are understood; pre-existing user changes are identified and preserved.
-- Relevant project instructions and matching skills are loaded.
-- Required files, symbols, imports, dependencies, and test commands were inspected rather than guessed.
-- Every job has an allowlist and a checkable finish line.
-- Parallel jobs are mechanically disjoint.
-- Delegate provider/model/reasoning settings match any user-specified configuration. Configuration changes affect only newly dispatched workers.
-- Todos exist, and jobs being dispatched are marked `in_progress`.
+Before dispatch:
 
-If a precondition fails, resolve it before dispatch. Do not create partial worker ownership while the plan is still ambiguous.
+- Understand branch/worktree state and preserve pre-existing changes.
+- Load relevant repository instructions and task skills.
+- Identify the acceptance boundary and likely affected component.
+- Ensure concurrent jobs have no file, symbol, generated-output, database, port, container, account, or snapshot overlap.
+- Use todos only when the overall task has enough moving parts to benefit from them; they are not mandatory delegation ceremony.
 
-## Decomposition and Parallelism
+Do enough discovery to write a safe brief. Do not spend expensive-model tokens tracing every implementation detail that the bounded worker can discover.
 
-### Dependency-closed jobs
-
-A narrow allowlist is a containment boundary, not permission to omit known production requirements. Before freezing ownership, trace:
-
-- Production definitions and all direct call sites.
-- Dedicated tests, fixtures, snapshots, and test setup.
-- Schemas, migrations, grants, manifests, lockfiles, generated contracts, exports, and documentation required by project rules.
-- Prior-task invariants in shared helpers.
-
-Either include a required dependency in one worker's ownership or reserve it explicitly for serialized main-agent integration.
-
-### Concurrent workers
-
-Multiple implementation workers may run concurrently only when their complete ownership is disjoint—not merely when test filenames differ. Check for overlap in:
-
-- Production files and symbols.
-- Tests, fixtures, snapshots, mocks, setup, and golden files.
-- Schemas, migrations, manifests, lockfiles, generated outputs, exports, and registries.
-- Shared integration modules or monolithic files.
-- Databases, ports, containers, test accounts, snapshots, or other mutable runtime resources.
-
-Dispatch independent jobs together in one bounded batch, capped by the runtime concurrency limit. If any ownership cannot be made mechanically disjoint, serialize it. Never manufacture parallelism by assigning two workers different regions of the same shared file.
-
-## Worker Brief Template
-
-Every implementation brief should include:
+## Worker Brief
 
 ```text
 OBJECTIVE
-One concrete outcome.
+One concrete implementation outcome.
 
-OWNED PATHS
-Exact dependency-closed source and test allowlist.
+ACCEPTANCE
+Observable behavior and required invariants.
 
-REQUIRED BEHAVIOR
-Observable acceptance criteria and repository invariants.
+OWNERSHIP
+Bounded component or exact source/test paths. For parallel writers, use disjoint allowlists.
 
 CONTEXT
-Where the change fits, inspected symbols, dependencies, and paths to relevant large files.
+Relevant symbols, architecture decisions, repository instructions, and paths to inspect.
 
 NON-GOALS
-Adjacent behavior and files the worker must not change.
+Adjacent behavior the worker must not change.
 
 WORKFLOW
-Use focused TDD when appropriate: establish a meaningful failure, implement, then verify.
+Use focused RED→GREEN TDD when behavior is testable. Make the smallest complete change.
 
-VERIFICATION
-Exact focused commands. Do not run the full repository suite unless this job uniquely requires it.
+VERIFY
+Focused commands that prove the owned behavior. Do not run the entire repository matrix unless required.
 
 HANDOFF
-Report changed paths, commands and results, assumptions, and unresolved concerns. Do not commit.
-Stop after the bounded job; do not perform shared integration or unrelated cleanup.
+Report changed paths, commands/results, assumptions, and unresolved concerns. Do not commit. Stop when the bounded outcome is complete.
 ```
 
-A worker report is a claim. The repository diff and main-agent execution results are authoritative.
+A worker report is a claim. The actual workspace and main-agent tool output are authoritative.
 
-## Implementation Wave
+## Execution Loop
 
-For each dependency-ready wave:
+### 1. Plan and partition
 
-1. **Partition:** define one or more dependency-closed jobs and reserve shared integration for the main agent.
-2. **Dispatch:** mark todos in progress and dispatch one worker or one disjoint parallel batch.
-3. **Protect leases:** while workers are active, do not edit, test, stage, or commit overlapping files or mutable runtime resources. Use the interval for non-overlapping read-only orchestration.
-4. **Reconcile:** after authoritative completion, inspect actual changed paths before accepting the summary. Stop on scope drift or concurrency signals.
-5. **Verify workers:** read each diff, enforce its allowlist, and rerun its focused tests from the main workspace.
-6. **Integrate:** apply shared/cross-cutting edits serially under main-agent ownership.
-7. **Review by risk:** use the policy below; do not launch reviewers by habit.
-8. **Adjudicate and correct:** the main agent resolves confirmed findings and adds regression coverage.
-9. **Run combined gates:** execute affected integration suites, type/lint/static checks, build, and full tests required by the project.
-10. **Close:** account for every changed path, update todos immediately, and commit only if requested.
+Choose the smallest complete implementation slice. Use one worker by default. Batch only dependency-ready, mechanically disjoint jobs.
 
-With a standing goal, continue into the next dependency-ready wave after verification. Stop only for a real blocker, explicit human/external gate, unresolved worker lease, or completion.
+### 2. Dispatch
 
-## Risk-Based Review Policy
+Send self-contained briefs. A managed worker holds a writer lease until the runtime reports completion, failure, timeout, or cancellation. While active, do not edit, test, stage, or commit overlapping files or mutable resources.
 
-Main-agent diff inspection and verification are always mandatory. An **independent reviewer** is additional evidence and should be selected by risk.
+### 3. Reconcile
 
-| Risk | Typical characteristics | Independent review |
-| --- | --- | --- |
-| Low | Localized behavior; one bounded module; no persistent-data, security, concurrency, or public-contract impact; strong deterministic regression tests | None by default |
-| Moderate | Several interacting modules; client/server boundary; meaningful public behavior; performance or lifecycle logic; tests leave semantic uncertainty | One combined spec-and-quality reviewer after integration when the main agent cannot fully establish correctness from code and tests |
-| High | Authentication/authorization/session/secret handling; migrations or destructive data operations; lease fencing/concurrency/transactions; security or outbound-network boundaries; risk/SLA policy semantics; silent corruption/data-loss potential; compatibility-sensitive public interfaces | One mandatory combined read-only reviewer after integration |
-| Formal gate | User, security plan, compliance process, or release procedure explicitly requires independent review | Follow the named gate; add re-review only when it requires it |
+After authoritative completion:
 
-When uncertain between tiers, choose the higher tier. Explain the risk trigger in the reviewer brief so the review targets the actual failure modes.
+- Inspect `git status` and every changed path.
+- Compare the actual diff with ownership, acceptance criteria, and non-goals.
+- Reject scope drift, hidden generated changes, unrelated cleanup, or unverifiable claims.
+- Rerun the worker's focused tests from the stable main workspace.
 
-### Review budget
+Do not reread the entire repository or redo the implementation merely to prove the orchestrator was involved.
 
-- Use at most **one combined independent reviewer per implementation wave** by default.
-- Do not launch separate spec and quality reviewers for every worker.
-- Review the integrated diff at the highest useful boundary rather than reviewing every intermediate boundary.
-- A reviewer is read-only and reports evidence; it does not edit, commit, or decide acceptance.
-- Re-review only when a formal gate requires it, a correction materially changes the design, or unresolved uncertainty cannot be closed by direct inspection and tests.
+### 4. Review and adjudicate
 
-## Review Adjudication and Corrections
+Main-agent review is mandatory and normally sufficient. Classify each concern as:
 
-For every reviewer finding, the main agent classifies it as:
-
-- **Confirmed:** supported by the spec, code, invariant, reproduction, or test.
+- **Confirmed:** supported by code, spec, reproduction, invariant, or test.
 - **False positive:** contradicted by repository evidence.
-- **Out of scope:** valid observation but not required for this change; report rather than silently expanding scope.
-- **Decision required:** multiple valid product interpretations materially change the implementation; ask the user.
+- **Out of scope:** valid observation not required for this task.
+- **Decision required:** materially different valid product choices; ask the user.
 
-For confirmed findings:
+Do not turn suggestions into mandatory work without evidence that they affect acceptance or safety.
 
-1. The main agent applies the correction directly.
-2. Add or strengthen regression coverage where appropriate.
-3. Rerun focused tests, affected prior-task tests, and required integration gates.
-4. Do not send ordinary review feedback back to the original implementation worker. Keeping workers single-purpose avoids context drift and uses the main agent's stronger model and broader context for reconciliation.
+### 5. Fix confirmed issues
 
-### Redesign escape hatch
+For a small or localized correction, the main agent edits it directly, adds or strengthens regression coverage when appropriate, and reruns affected tests.
 
-If review reveals that the original architecture or decomposition is fundamentally wrong, do not turn the main agent's correction into an unbounded rewrite and do not bounce a growing feedback list to the original worker.
+If adjudication reveals a substantial redesign or a large new implementation slice:
 
-1. Stop acceptance of the affected wave.
-2. Preserve and classify the current diff.
-3. Reassess the design and dependency graph.
-4. Keep architectural decisions and shared integration main-agent-owned.
-5. Repartition any substantial new implementation into fresh bounded jobs.
-6. Dispatch a new worker only for a newly defined implementation job, not as a continuation of the old review loop.
-7. Re-run the complete acceptance gate on the integrated result.
+1. Stop accepting the affected result.
+2. Reassess the design and ownership boundary.
+3. Keep architecture and shared integration main-agent-owned.
+4. Dispatch a fresh bounded implementation job if delegation still saves tokens.
 
-Use this escape hatch for genuine redesign, not routine corrections.
+Do not reflexively return routine feedback to the original worker or spawn a separate fix agent.
 
-## Testing Policy
+### 6. Final verification
 
-### Worker tests
+Run:
 
-Workers run the smallest commands that prove their owned behavior:
+- Focused worker tests from the stable workspace.
+- Regressions for changed shared behavior.
+- Affected integration/type/lint/static/build checks.
+- The repository's explicitly required completion gate.
 
-- Dedicated unit or component tests.
-- Directly affected neighboring tests.
-- File/module-level syntax, type, or lint checks when available.
-- A meaningful RED step before implementation when TDD is appropriate.
+Run a full repository suite only when project instructions require it, the blast radius justifies it, or focused evidence cannot establish safety.
 
-Workers should not independently run the entire repository test/build matrix unless their task uniquely requires it. Parallel full-suite runs waste time and can contend on shared resources.
+Then account for all changed paths, update useful todos, and commit only when requested or required by the active workflow.
 
-### Main-agent tests
+## Independent Review Policy
 
-After reconciliation and integration, the main agent runs:
+An independent reviewer is **not part of the default loop**. The expensive orchestrator already reviews and adjudicates the delegate's work.
 
-1. Every focused worker suite from the stable main workspace.
-2. Prior-task regressions for reused shared modules.
-3. Cross-module integration tests.
-4. Project-required type, lint, static-analysis, build, and full-test gates.
-5. Diff/static checks and any database-backed verification required by the change.
+Add at most one combined read-only reviewer for the integrated diff only when:
 
-Do not claim completion from a worker's green tests alone.
+- The user explicitly requests independent review.
+- A formal security/compliance/release gate requires it.
+- The change is high consequence and the orchestrator identifies a concrete uncertainty that code inspection and tests cannot close.
+- Competing implementations or subtle domain semantics benefit from a genuinely independent perspective.
+
+Do **not** add an independent reviewer merely because:
+
+- A subagent wrote the code.
+- More than one or two files changed.
+- A task, wave, commit, or push is complete.
+- The change touches a category labeled “moderate” or “high” but the orchestrator can establish correctness directly.
+- A previous reviewer produced only non-blocking suggestions.
+
+If used, review once at the highest integrated boundary. Re-review only for a formal requirement or a material redesign—not after ordinary localized fixes.
+
+A reviewer is read-only evidence, not an acceptance authority. The main agent adjudicates every finding before changing code.
 
 ## Failure and Recovery
 
-A managed dispatch holds a logical writer lease until the runtime reports completion, failure, timeout, or cancellation, or the user explicitly cancels it. Missing UI entries, process searches, unchanged Git snapshots, or complete-looking files do not release that lease.
+- Never replace or overwrite an unresolved managed worker lease.
+- On timeout, delayed callback, cancellation, or uncertain writer state, load [managed-delegate-writer-leases](references/managed-delegate-writer-leases.md).
+- For external CLI workers or isolated worktrees, load [external-cli-process-trees](references/external-cli-process-trees.md).
+- If a worker fails without writing, replan or take over only after the lease ends.
+- If a worker returns an incomplete but safe partial diff, either finish a small remainder directly or define a fresh bounded job. Do not create an endless feedback loop.
 
-- For a timeout, missing worker, late callback, sibling-modification warning, or uncertain writer ownership, see [references/managed-delegate-writer-leases.md](references/managed-delegate-writer-leases.md) before taking over or dispatching a replacement.
-- For an unrestricted external CLI worker, isolated worktree, Windows descendant process, or unexpected worker commit, see [references/external-cli-process-trees.md](references/external-cli-process-trees.md).
-- Never run a replacement writer over an unresolved lease.
-- After a valid handoff, the main agent may correct reviewed work and integrate it. If the initial implementation itself remains fundamentally incomplete, replan it into a fresh bounded job rather than silently absorbing broad implementation.
+## Progressive References
 
-## Progressive-Disclosure References
-
-These files hold the failure-mode playbooks. Read the file whose trigger matches the current situation (open the file when the trigger applies — do not preload them):
+Load only when triggered:
 
 | Trigger | Reference |
 | --- | --- |
-| Large roadmap, many workers, large artifacts, or rising context pressure | [context-budget-discipline](references/context-budget-discipline.md) |
-| Workflow needs explicit pre-flight, revision, escalation, or abort gates | [gates-taxonomy](references/gates-taxonomy.md) |
-| Security/DAST pipeline, outbound traffic, bounded capture, or security artifact acceptance | [security-pipeline-orchestration](references/security-pipeline-orchestration.md) |
-| Managed worker timeout, missing UI state, delayed callback/write, cancellation, or unresolved writer lease | [managed-delegate-writer-leases](references/managed-delegate-writer-leases.md) |
-| Codex/Claude/OpenCode or another external CLI process, unrestricted reviewer, worktree isolation, or orphan descendant | [external-cli-process-trees](references/external-cli-process-trees.md) |
+| Large roadmap, many workers, or context pressure | [context-budget-discipline](references/context-budget-discipline.md) |
+| Explicit revision/escalation/abort gates | [gates-taxonomy](references/gates-taxonomy.md) |
+| Security/DAST or bounded evidence capture | [security-pipeline-orchestration](references/security-pipeline-orchestration.md) |
+| Managed worker timeout or uncertain lease | [managed-delegate-writer-leases](references/managed-delegate-writer-leases.md) |
+| External CLI process or isolated worktree | [external-cli-process-trees](references/external-cli-process-trees.md) |
 
-## Verification Checklist
+## Completion Checklist
 
-Before final delivery, confirm:
-
-- [ ] Every worker had one bounded job and an enforced source-and-test allowlist.
-- [ ] Concurrent workers had no file, symbol, integration, or mutable-runtime overlap.
-- [ ] Every worker lease ended authoritatively before reconciliation.
+- [ ] Delegation saved more work than it added.
+- [ ] Each worker had one bounded, checkable outcome.
+- [ ] Concurrent writers had disjoint ownership and mutable resources.
+- [ ] Worker leases ended authoritatively before reconciliation.
 - [ ] The main agent inspected every changed path and reran focused tests.
-- [ ] Shared integration was serialized under main-agent ownership.
-- [ ] Review level matched the documented risk policy.
-- [ ] Reviewer findings were adjudicated; confirmed fixes were main-agent-owned.
-- [ ] Required integration, check, build, and test gates passed on the stable final state.
-- [ ] Every changed path is explained and unrelated user state is preserved.
-- [ ] Todos reflect the verified result.
+- [ ] The main agent adjudicated correctness without duplicating implementation.
+- [ ] Confirmed localized defects were fixed directly.
+- [ ] Independent review was used only with a documented trigger.
+- [ ] Required affected and project-mandated gates passed.
+- [ ] Every changed path is explained and user state preserved.
 - [ ] No commit was created unless requested or required.
