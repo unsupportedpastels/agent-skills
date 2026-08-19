@@ -1,14 +1,10 @@
 ---
 name: subagent-driven-development
-description: "Use for cost-efficient coding: delegate implementation, orchestrator adjudicates."
-version: 3.0.0
-author: Hermes Agent (adapted from obra/superpowers)
+description: "Use for substantial coding tasks suited to delegation."
 license: MIT
-platforms: [linux, macos, windows]
 metadata:
-  hermes:
-    tags: [delegation, subagent, implementation, workflow, cost-control]
-    related_skills: [requesting-code-review]
+  tags: [delegation, subagent, implementation, workflow, cost-control]
+  related_skills: [requesting-code-review]
 ---
 
 # Subagent-Driven Development
@@ -145,7 +141,7 @@ After authoritative completion:
 - Reject scope drift, hidden generated changes, unrelated cleanup, or unverifiable claims.
 - Rerun the worker's focused tests from the stable main workspace.
 
-Inspect evidence-proportionally to keep review cheap: start from `git diff --stat` and the worker's focused test results; read full hunks only where risk concentrates — shared surfaces, security/compatibility boundaries, protocol/contract code, or anything touching paths outside the worker's ownership. For mechanical or well-tested changes, passing acceptance tests plus a stat-level scan is sufficient primary evidence. Every changed path must still be accounted for; "accounted for" does not require reading every line. When reconciling a wide concurrent batch, process one worker's result at a time rather than loading all diffs simultaneously.
+Inspect evidence-proportionally to keep review cheap: start from `git diff --stat` and the worker's focused test results, then inspect every changed hunk against ownership, acceptance criteria, and non-goals. Read broader surrounding context where risk concentrates — shared surfaces, security/compatibility boundaries, protocol/contract code, or anything touching paths outside the worker's ownership. For mechanical or well-tested changes, changed-hunk inspection plus passing acceptance tests is sufficient; do not reread entire files when the hunks establish the relevant behavior. Every changed path must still be accounted for. When reconciling a wide concurrent batch, process one worker's result at a time rather than loading all diffs simultaneously.
 
 Do not reread the entire repository or redo the implementation merely to prove the orchestrator was involved.
 
@@ -212,8 +208,8 @@ A reviewer is read-only evidence, not an acceptance authority. The main agent ad
 ## Failure and Recovery
 
 - Never replace or overwrite an unresolved managed worker lease.
-- On timeout, delayed callback, cancellation, or uncertain writer state, load `references/managed-delegate-writer-leases.md`.
-- For external CLI workers or isolated worktrees, load `references/external-cli-process-trees.md`.
+- On timeout, delayed callback, cancellation, or uncertain writer state, load [managed-delegate-writer-leases](references/managed-delegate-writer-leases.md).
+- For external CLI workers or isolated worktrees, load [external-cli-process-trees](references/external-cli-process-trees.md).
 - If a worker fails without writing, replan or take over only after the lease ends.
 - If a worker returns an incomplete but safe partial diff, either finish a small remainder directly or define a fresh bounded job. Do not create an endless feedback loop.
 
@@ -223,11 +219,11 @@ Load only when triggered:
 
 | Trigger | Reference |
 | --- | --- |
-| Large roadmap, many workers, or context pressure | `references/context-budget-discipline.md` |
-| Explicit revision/escalation/abort gates | `references/gates-taxonomy.md` |
-| Security/DAST or bounded evidence capture | `references/security-pipeline-orchestration.md` |
-| Managed worker timeout or uncertain lease | `references/managed-delegate-writer-leases.md` |
-| External CLI process or isolated worktree | `references/external-cli-process-trees.md` |
+| Large roadmap, many workers, or context pressure | [context-budget-discipline](references/context-budget-discipline.md) |
+| Explicit revision/escalation/abort gates | [gates-taxonomy](references/gates-taxonomy.md) |
+| Security/DAST or bounded evidence capture | [security-pipeline-orchestration](references/security-pipeline-orchestration.md) |
+| Managed worker timeout or uncertain lease | [managed-delegate-writer-leases](references/managed-delegate-writer-leases.md) |
+| External CLI process or isolated worktree | [external-cli-process-trees](references/external-cli-process-trees.md) |
 
 ## Completion Checklist
 
