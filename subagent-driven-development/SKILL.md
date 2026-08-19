@@ -1,7 +1,10 @@
 ---
 name: subagent-driven-development
-description: "Use for cost-efficient coding when an expensive orchestrator should plan, delegate bounded implementation to cheaper workers, adjudicate the diff, fix confirmed defects, and avoid unnecessary review agents."
+description: "Use for substantial coding tasks suited to delegation."
 license: MIT
+metadata:
+  tags: [delegation, subagent, implementation, workflow, cost-control]
+  related_skills: [requesting-code-review]
 ---
 
 # Subagent-Driven Development
@@ -14,17 +17,18 @@ Default loop:
 
 > Plan and bound the task → dispatch implementation worker(s) → inspect the actual diff → adjudicate correctness → fix confirmed issues → run final verification → deliver.
 
-The goal is not maximum agent count. The goal is to move implementation tokens to a cheaper model without surrendering architectural judgment or final correctness.
+The goal is not maximum agent count. The goals are (a) to move implementation tokens to a cheaper model without surrendering architectural judgment or final correctness, and (b) to keep every session's context small: narrow briefs keep worker sessions bounded, and fan-out keeps implementation churn out of the orchestrator's context. Fan-out is a context-budget and speed tool, not just a cost tool.
 
 ## Cost-Control Rules
 
 1. **Do not delegate trivial work.** If explaining and dispatching the task costs more than doing a small mechanical edit directly, do it directly.
-2. **Prefer one implementation worker.** Spawn multiple workers only for genuinely independent jobs that benefit from parallelism.
-3. **Do not duplicate the worker's implementation.** The orchestrator should inspect and reason about the resulting diff, not independently reimplement the same feature.
-4. **Do not spawn reviewers by habit.** Main-agent inspection is the default review. Independent review requires a specific trigger.
-5. **Do not bounce routine fixes between agents.** The orchestrator directly fixes small, confirmed defects because it has the broader context and stronger model.
-6. **Verify proportionally.** Rerun focused tests and project-required gates. Do not run every possible suite or review stage merely because it exists.
-7. **Keep prompts bounded.** Pass task semantics, paths, invariants, and commands—not copied repositories, giant file bodies, or irrelevant conversation history.
+2. **Actively capitalize on safe delegation.** For a non-trivial task, decompose into independent, bounded workstreams instead of reflexively using one worker. Dispatch all dependency-ready, disjoint slices concurrently when their ownership and mutable resources are disjoint, or when parallel work is read-only (for example, independent contract audits). The concurrency bound is disjointness and runtime limits, not a fixed agent count. This is the default optimization: it reduces elapsed time and keeps each session's context small without weakening review.
+3. **Serialize overlapping writers.** Do not run concurrent implementation workers that can edit the same files, symbols, generated outputs, snapshots, databases, ports, accounts, or other mutable resources. Partition first, then parallelize only proven-disjoint ownership.
+4. **Do not duplicate the worker's implementation.** The orchestrator should inspect and reason about the resulting diff, not independently reimplement the same feature.
+5. **Do not spawn reviewers by habit.** Main-agent inspection is the default review. Independent review requires a specific trigger.
+6. **Do not bounce routine fixes between agents.** The orchestrator directly fixes small, confirmed defects because it has the broader context and stronger model.
+7. **Verify proportionally.** Rerun focused tests and project-required gates. Do not run every possible suite or review stage merely because it exists.
+8. **Keep prompts bounded.** Pass task semantics, paths, invariants, and commands—not copied repositories, giant file bodies, or irrelevant conversation history.
 
 Delegate provider/model/reasoning are configured outside this skill. Confirm them when the user changes delegation settings or when a mismatch is suspected; do not revalidate the model registry on every task.
 
@@ -122,7 +126,7 @@ A worker report is a claim. The actual workspace and main-agent tool output are 
 
 ### 1. Plan and partition
 
-Choose the smallest complete implementation slice. Use one worker by default. Batch only dependency-ready, mechanically disjoint jobs.
+Decompose the plan into the smallest independently-verifiable jobs. Never hand one worker the entire todo list — one worker owns one bounded slice with very specific acceptance criteria. Dispatch all dependency-ready, mechanically disjoint slices concurrently; serialize only overlapping writers or true dependencies. Use a single worker only when the task genuinely has one indivisible slice.
 
 ### 2. Dispatch
 
@@ -136,6 +140,8 @@ After authoritative completion:
 - Compare the actual diff with ownership, acceptance criteria, and non-goals.
 - Reject scope drift, hidden generated changes, unrelated cleanup, or unverifiable claims.
 - Rerun the worker's focused tests from the stable main workspace.
+
+Inspect evidence-proportionally to keep review cheap: start from `git diff --stat` and the worker's focused test results, then inspect every changed hunk against ownership, acceptance criteria, and non-goals. Read broader surrounding context where risk concentrates — shared surfaces, security/compatibility boundaries, protocol/contract code, or anything touching paths outside the worker's ownership. For mechanical or well-tested changes, changed-hunk inspection plus passing acceptance tests is sufficient; do not reread entire files when the hunks establish the relevant behavior. Every changed path must still be accounted for. When reconciling a wide concurrent batch, process one worker's result at a time rather than loading all diffs simultaneously.
 
 Do not reread the entire repository or redo the implementation merely to prove the orchestrator was involved.
 
@@ -222,6 +228,7 @@ Load only when triggered:
 ## Completion Checklist
 
 - [ ] Delegation saved more work than it added.
+- [ ] The plan was partitioned into narrow slices; no single worker received the entire todo list.
 - [ ] Each worker had one bounded, checkable outcome.
 - [ ] Concurrent writers had disjoint ownership and mutable resources.
 - [ ] Worker leases ended authoritatively before reconciliation.
